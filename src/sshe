@@ -1,0 +1,109 @@
+#!/bin/sh
+
+# Like "env", but sets the SSH environment if it can.
+# Handy with sshp - if you reconnect, the old SSH_AUTH_SOCK is no longer valid.
+# Handy when we xrsh in a window - the xrsh ssh exits
+# and closes the agent socket, so look around for
+# another likely candidate.  We hope we have another
+# login somewhere.
+
+# Dates back well over a decade, but used to be a csh script  ...
+
+myname=`basename "$0"`
+
+quietquit="false"
+if [ $# -gt 0 ]; then
+    if [ "$1" = "-q" ]; then
+	quietquit="true"
+	shift
+    fi
+fi
+
+# Make sure we aren't using an old one ...
+if [ -n "$SSH_AUTH_SOCK" ]; then
+    if [ ! -e "$SSH_AUTH_SOCK" ]; then
+	unset SSH_AUTH_SOCK
+    else
+	# see if there are any identities
+	# could be none, or non-existent socket, or no process
+	# if none, then reject this one
+	ssh-add -l >/dev/null 2>&1
+	if [ $? != 0 ]; then
+	    unset SSH_AUTH_SOCK
+	fi
+#	# we have something like /tmp/ssh-sdfdqweqwqwfef/agent.PID
+#	# that exists, but see if the process is still running
+#	if [ ! -e "/proc/$SSH_AUTH_SOCK:e" ]; then
+#	    unset SSH_AUTH_SOCK
+#	fi
+    fi
+fi
+
+me=`id -un`
+uid=`id -u`
+# if [ "$me" = "" ] set me="jsellens"
+
+# What if we are sudo'd to root or some other user?
+# I think this is the right thing to do.
+# Sure, someone could set SUDO_USER and SUDO_UID to trick us,
+# but it wouldn't let them do anything they couldn't already do.
+test -n "$SUDO_USER" && me="$SUDO_USER"
+test -n "$SUDO_UID" && uid="$SUDO_UID"
+
+# Do we have a keyring ssh agent working - if so, prefer that
+if [ -z "$SSH_AUTH_SOCK" ]; then
+    keyssh="/run/user/$uid/keyring/ssh"
+    if [ -e "$keyssh" ]; then
+	# see if there are any identities
+	env "SSH_AUTH_SOCK=$keyssh" ssh-add -l >/dev/null 2>&1
+	if [ $? -eq 0 ]; then
+	    export SSH_AUTH_SOCK="$keyssh"
+	fi
+    fi
+fi
+
+# Look to see if we have an ssh-agent likely running
+if [ -z "$SSH_AUTH_SOCK" ]; then
+    # I think this is better?
+    # We do two finds so that we can avoid /tmp directories owned by others
+    # with restrictive permissions, like root /tmp/ssh-* directories
+    sshdirs=`find /tmp/ -maxdepth 1 -user "$me" -type d -name ssh-\* -print`
+    # Include /dev/null in case sshdirs is empty
+    for i in `find /dev/null $sshdirs -maxdepth 1 -user "$me" -type s -name agent.\* -print | xargs -r ls -t` ; do
+	# we have something like /tmp/ssh-sdfdqweqwqwfef/agent.PID
+	pid=`echo "$i" | sed -e 's/.*\.//'`
+	if [ -e "/proc/$pid" ]; then
+	    # see if there are any identities
+	    env "SSH_AUTH_SOCK=$i" ssh-add -l >/dev/null 2>&1
+	    if [ $? = 0 ]; then
+		export SSH_AUTH_SOCK="$i"
+		break
+	    fi
+	fi
+    done
+fi
+
+if [ -z "$SSH_AUTH_SOCK" ]; then
+    if [ "$quietquit" != "yes" ]; then
+	echo 1>&2 "${myname}: could not find a current SSH_AUTH_SOCK"
+	exit 1
+    fi
+    # quietquit
+    exit 0
+fi
+
+# if we have no arguments, just spit out the variable, e.g. eval `sshe`
+if [ $# -eq 0 ]; then
+    case "$SHELL" in
+	*csh)
+	    echo "setenv SSH_AUTH_SOCK $SSH_AUTH_SOCK"
+	    ;;
+	*)
+	    echo "export SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+	    ;;
+    esac
+    exit 0
+fi
+
+# echo DOING exec env "$@"
+exec env "$@"

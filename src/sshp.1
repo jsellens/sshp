@@ -1,0 +1,121 @@
+.TH SSHP 1
+.SH NAME
+sshp \- persistent ssh using screen
+.SH SYNOPSIS
+.B sshp
+.RI [ -ls ]
+.RI [ -Ls ]
+.RI [ -LS ]
+.RI [ "-n sessionname" ]
+.I ssh args
+.SH DESCRIPTION
+.B sshp
+is a wrapper for
+.IR ssh (1)
+that attempts to re-establish the connection if it ever drops.
+.PP
+For example, open ssh to a remote host, put your laptop to sleep, and
+the ssh connection likely drops.
+With
+.BR sshp ,
+when you wake your laptop, it will attempt to re-connect you as you were.
+This is done by creating and re-connecting to
+.IR screen (1)
+sessions on the remote host.
+.PP
+Don't try to use
+.B sshp
+to run a single command on a remote host - it won't work.
+.PP
+.B sshp
+uses a naming convention for
+.I screen
+sessions on the remote host.
+.SH "SSH CHALLENGES"
+You likely want to use ssh keys, so you're not ever prompted for a password.
+It might work, but it would likely be annoying.
+.PP
+Agent forwarding:
+If your connection drops and you re-connect, your ssh agent environment
+variables on the remote system will no longer be valid - you will still
+have the original environment variables, but the original ssh-agent port
+will no longer work (since the original ssh connection died).
+The
+.IR sshe (1)
+command can help you in that case, to re-set your environment, or
+as another
+.IR ssh (1)
+cover, that will set the environment if possible.
+.SH OPTIONS
+At most one of these options may be used at a time.
+.IP -ls
+List
+.B sshp
+sessions on the remote host that came from this host
+.IP -Ls
+Like
+.I -l
+but lists sessions from any host
+.IP -LS
+Same as
+.I -Ls
+but might be easier to type and remember
+.IP "-n sessionname"
+Set the
+.I screen
+sessionname, rather than using the default local process ID.
+This can be handy if you like to layout your local screen in certain ways,
+and also allows you to automatically re-connect to existing sessions even
+after a local reboot.
+.IP
+You can use
+.I "-n ''"
+to connect to a detached session listed by
+.IR -l ,
+as long as there is only one such detached session.
+If there is more than one, you can use the last section of the
+.I screen
+sessionname with
+.IR -n .
+.SH NOTES
+.B sshp
+names
+.I screen
+sessions with the convention
+.nf
+    sshp__local.host.name__identifier
+.fi
+where
+.I identifier
+is the
+.I sessionname
+provided with
+.IR -n ,
+or the local
+.I sshp
+process ID.
+.PP
+.SH EXAMPLES
+.nf
+    sshp -n mainwindow mgmt.example.com
+.fi
+.SH "SEE ALSO"
+.IR sshe (1),
+.br
+.IR xpra " - X persistent remote applications https://xpra.org/"
+.br
+.IR mosh (1)
+I keep thinking that
+.I mosh
+needs to pass UDP packets back and forth, and firewalls may not allow that?
+.br
+.IR autossh (1)
+I think of
+.I autossh
+as being for more "permanent" connections.
+.I "Ethernal Terminal"
+https://eternalterminal.dev/
+requires another open port through your firewall(s)
+and (I believe) doesn't allow transparent host jumping the way
+.IR ssh (1)
+does.

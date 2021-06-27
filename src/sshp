@@ -1,0 +1,139 @@
+#!/bin/sh
+
+# sshp - persistent ssh
+
+# See also xpra - X persistent remote applications https://xpra.org/
+
+# Could add a -a option to connect if any available,
+# otherwise create new and connect.  But I think that
+# would just be a short form for -n '' ?
+
+# Do we want to incorporate source hostname in session name?
+# So you can do the same remote sessions from multiple 
+# machines without problems?
+
+# inherit PATH, environment and umask from the caller, maybe they have
+# their own ssh cover, or whatever.  Hope they not being weird no how.
+
+myname=`basename "$0"`
+
+usage() {
+    echo 1>&2 "$myname: usage $myname [-ls | -Ls | -LS | -n sessionname] ssh-arguments ..."
+    exit 1
+}
+
+test $# -eq 0 && usage
+
+thishost=`hostname`
+pname="$$"
+# pname="sshp"
+prefix="${myname}__${thishost}"
+
+listonly=false
+if [ "$1" = "-ls" ]; then
+    listonly=true
+    pname=""
+    shift
+elif [ "$1" = "-Ls" -o "$1" = "-LS" ]; then
+    listonly=true
+    pname=""
+    prefix="${myname}"
+    shift
+elif [ "$1" = "-n" ]; then
+    pname="$2"
+    shift
+    shift
+fi
+# note: screen -list takes a match pattern so empty pname matches any
+pname="${prefix}__${pname}"
+
+test $# -eq 0 && usage
+
+if $listonly ; then
+    ssh "$@" screen -list "$pname"
+    exit $?
+fi
+
+
+# Make sure the remote session exists
+# One could argue that we should just call "screen -R" later which
+# should reattach or create.
+
+ssh "$@" screen -q -list "$pname"
+res=$?
+create=false
+case $res in
+    9 | 8)
+	# apparently 8 can also mean no sessions
+	# does not exist, so create it
+	echo 1>&2 "$myname: creating '$pname'"
+	create=true
+	;;
+    10)
+	# exists, but is not attachable
+	# but on a1 centos it may mean ok
+	echo 1>&2 "$myname: remote screen '$pname' exists but not attachable"
+	echo 1>&2 "$myname: trying anyway"
+	# exit 1
+	;;
+    *)
+	# >=11 means one or more usable sessions exists
+	# BUT they could be attached already
+	if [ $res -lt 11 ]; then
+	    echo 1>&2 "$myname: remote check for '$pname' failed"
+	    exit $res
+	fi
+esac
+
+# Now we are fairly confident that it exists, so connect
+# and use -t to make sure we have a terminal
+
+# While looping, if the remote side suspends, our ssh will die, and we
+# will try again.  When the remote side wakes up, the sshd there will still
+# be around for a least a while. So when we try to reconnect, the screen
+# will be attached to an sshd/shell that can no longer be connected to.
+# So, if we get a 10, let's try and force a reconnect, one time.
+
+detach=""
+while true ; do
+    if $create ; then
+	screenopts="-S"
+	create=false
+    else
+	# don't use -R which would re-create endlessly
+	screenopts="-q $detach -r"
+    fi
+    justdetached="$detach"
+    detach=""
+    echo 1>&2 "$myname: connecting to '$pname' ..."
+    # ssh -t "$@" "screen $screenopts '$pname' && exit 100"
+    ssh -t "$@" "screen $screenopts '$pname'"
+    res=$?
+    echo 1>&2 "$myname: exited with $res from '$pname' ..."
+    if [ $res -eq 10 ]; then
+	echo 1>&2 "$myname: intentional detach, no longer exists, or already attached '$pname'"
+	if [ -n "$justdetached" ]; then
+	    echo 1>&2 "$myname: already tried to detach/reattach, exiting"
+	    res=0
+	    break
+	fi
+	echo 1>&2 "$myname: will try to detach/reattach"
+	detach="-d"
+	continue	# don't bother sleeping
+    fi
+    if [ $res -eq 0 ]; then
+	# normal termination, assume intentional
+	break
+    fi
+    echo 1>&2 "$myname: sleeping before reconnect to '$pname' ..."
+    # What happens if we ssh somewhere else that goes to sleep, or disconnects?
+    # We keep trying for a long time, but it's less likely that remote
+    # machines go down, I think.  More likely our local machine/laptop goes
+    # to sleep.
+    sleep 10
+done
+
+
+echo 1>&2 "$myname: done with '$pname'"
+
+exit $res

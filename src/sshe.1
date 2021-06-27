@@ -1,0 +1,46 @@
+.TH SSHE 1
+.SH NAME
+sshe \- like env, but set SSH_AUTH_SOCK first if possible
+.SH SYNOPSIS
+.B sshe
+.RI [ -q ]
+.RI [ "command arg ..." ]
+.SH DESCRIPTION
+.B sshe
+is like
+.IR env (1)
+but first triese to find a still valid socket to set in the
+.B SSH_AUTH_SOCK
+environment variable.
+.PP
+Useful if you want to run a cron job that needs to make an ssh connection
+e.g. run
+.IR unison (1)
+to sync files.
+Handy if you xrsh to a machine where you already have a login.
+.PP
+If no
+.I command
+is provided,
+.B sshe
+will output a shell command to set the environment appropriately.
+.PP
+If you are using
+.BR sudo (1)
+to become another user,
+.B sshe
+will attempt to use your own SSH_AUTH_SOCK setting.
+.SH OPTIONS
+.IP -q
+quietquit - if no current SSH_AUTH_SOCK is found, exit 0 with no
+error message.
+Default is to print an error message and exit 1 if no SSH_AUTH_SOCK.
+.SH EXAMPLES
+.nf
+% sshe git pull
+% eval `sshe`
+.fi
+.SH "SEE ALSO"
+.IR sshp (1)
+.SH AUTHOR
+John Sellens
