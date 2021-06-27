@@ -47,12 +47,13 @@ socket for SSH_AUTH_SOCK.  You might find an alias like this useful
 to reset your current shell's ssh environment.
 
 If the remote machine reboots, your screen session dies with it.
-So your sshp connection keep trying to re-connect until the remote
+So your sshp connection keeps trying to re-connect until the remote
 reboot is complete, and then gives up (because it observes that
 the screen session is gone).
 
 if your local machine reboots, you'll leave a remote screen
-session running - the -ls -Ls and -n options to sshp help
+session running, which you will likely want to re-connect to
+and/or cleanup.  The -ls -Ls and -n options to sshp help
 you deal with that situation.
 
 ## Why Did You Reinvent the Wheel?
