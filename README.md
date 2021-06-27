@@ -54,3 +54,23 @@ the screen session is gone).
 if your local machine reboots, you'll leave a remote screen
 session running - the -ls -Ls and -n options to sshp help
 you deal with that situation.
+
+## Why Did You Reinvent the Wheel?
+
+There are other tools that do similar things, but they didn't
+seem to solve the problem I had.  They often seemed to need
+additional ports, protocols, or services.
+
+The other tools obviously solve problems for lots of folks,
+maybe you'll find them helpful.
+
+Or, maybe I've overlooked something blindingly obvious.
+
+- xpra - X persistent remote applications https://xpra.org/
+- mosh(1) I keep thinking that mosh needs to pass UDP packets
+  back and forth, and firewalls may not allow that?
+- autossh(1) I think of autossh as being for more "permanent" connections.
+- Ethernal  Terminal  https://eternal‐terminal.dev/  requires  another
+  open port through your firewall(s) and (I believe) doesn't allow
+  transparent host jumping the way ssh(1) does.
+
